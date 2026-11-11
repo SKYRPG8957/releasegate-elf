@@ -25,7 +25,7 @@ def load_policy(path):
         raise ValueError('unknown policy keys: ' + ', '.join(sorted(unknown)))
     if type(policy.get('schema_version')) is not int or policy['schema_version'] != 1:
         raise ValueError('schema_version must be 1')
-    if policy.get('architecture') not in {'x86', 'x86_64', 'arm', 'aarch64', 'riscv'}:
+    if not isinstance(policy.get('architecture'), str) or policy['architecture'] not in {'x86', 'x86_64', 'arm', 'aarch64', 'riscv'}:
         raise ValueError('architecture must be x86, x86_64, arm, aarch64 or riscv')
     for key in ('max_glibc', 'max_glibcxx'):
         if key in policy:

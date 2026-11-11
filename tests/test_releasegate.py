@@ -151,6 +151,39 @@ class ReleaseGateTests(unittest.TestCase):
                     read_archive(self.archive([(name, b'x', 0o644)], zip=zip))
         self.assertFalse((self.root.parent / 'escape').exists())
 
+    def test_root_directory_entries(self):
+        # GNU tar commonly includes ./ when packaging a directory's contents.
+        for root_name in ('.', './'):
+            for zipped in (False, True):
+                with self.subTest(root_name=root_name, zipped=zipped):
+                    path = self.root / ('root.zip' if zipped else 'root.tar')
+                    if zipped:
+                        with zipfile.ZipFile(path, 'w') as archive:
+                            archive.writestr(root_name + '/', b'')
+                            archive.writestr('./README', b'release notes')
+                    else:
+                        with tarfile.open(path, 'w') as archive:
+                            root = tarfile.TarInfo(root_name)
+                            root.type = tarfile.DIRTYPE
+                            archive.addfile(root)
+                            item = tarfile.TarInfo('./README')
+                            item.size = len(b'release notes')
+                            archive.addfile(item, io.BytesIO(b'release notes'))
+                    self.assertEqual(set(read_archive(path)), {'README'})
+        for root_name in ('.', './'):
+            with self.subTest(root_name=root_name), self.assertRaises(ValueError):
+                read_archive(self.archive([(root_name, b'x', 0o644)]))
+
+    def test_cli_invalid_architecture_types(self):
+        path = self.root / 'policy.json'
+        for architecture in ([], {}, None, 42, True):
+            path.write_text(json.dumps(dict(self.policy, architecture=architecture)))
+            output = io.StringIO()
+            with self.subTest(architecture=architecture), contextlib.redirect_stdout(output):
+                code = main(['unused.tar', '--policy', str(path), '--format', 'json'])
+            self.assertEqual(code, 2)
+            self.assertIn('architecture must be', json.loads(output.getvalue())['error'])
+
     def test_duplicate_normalized_paths(self):
         with self.assertRaises(ValueError):
             read_archive(self.archive([('app', b'x', 0o644), ('./app', b'y', 0o644)]))
