@@ -1,0 +1,28 @@
+name: Test
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.10', '3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m unittest discover -s tests -v
+      - run: python -m compileall -q releasegate tests
+      - name: Build action smoke fixture
+        run: |
+          mkdir -p dist/demo/bin
+          printf 'int main(void){return 0;}' > dist/demo.c
+          gcc dist/demo.c -o dist/demo/bin/demo
+          tar -czf dist/demo.tar.gz -C dist demo
+          printf '{"schema_version":1,"architecture":"x86_64","executables":["demo/bin/demo"]}' > dist/policy.json
+      - uses: ./
+        with:
+          artifact: dist/demo.tar.gz
+          policy: dist/policy.json

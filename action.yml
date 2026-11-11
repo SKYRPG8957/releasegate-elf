@@ -1,0 +1,20 @@
+name: ReleaseGate ELF archive check
+description: Inspect finished Linux release archives against a JSON policy without running binaries.
+inputs:
+  artifact:
+    description: Path to a ZIP or tar release archive
+    required: true
+  policy:
+    description: Path to a ReleaseGate JSON policy
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        RELEASEGATE_SOURCE: ${{ github.action_path }}
+        RELEASEGATE_ARTIFACT: ${{ inputs.artifact }}
+        RELEASEGATE_POLICY: ${{ inputs.policy }}
+      run: |
+        # Isolated mode ignores runner PYTHONPATH and local module shadowing.
+        python3 -I -c 'import runpy,sys; sys.path.insert(0,sys.argv.pop(1)); runpy.run_module("releasegate",run_name="__main__")' "$RELEASEGATE_SOURCE" "$RELEASEGATE_ARTIFACT" --policy "$RELEASEGATE_POLICY"
