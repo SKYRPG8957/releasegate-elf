@@ -13,7 +13,7 @@ def safe_name(name):
     if not name or '\\' in name or '\x00' in name or any(ord(c) < 32 for c in name):
         raise ValueError('unsafe archive path')
     p = PurePosixPath(name)
-    if p.is_absolute() or '..' in p.parts or ':' in p.parts[0]:
+    if p.is_absolute() or '..' in p.parts or (p.parts and ':' in p.parts[0]):
         raise ValueError('unsafe archive path: ' + repr(name))
     normalized = str(p)
     if normalized == '.':
