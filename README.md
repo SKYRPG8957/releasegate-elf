@@ -87,7 +87,7 @@ A bundled library is checked as another ELF file; its requirements can still vio
 
 ## Safety model
 
-Only ZIP and tar/tar.gz/tar.bz2/tar.xz archives are supported (as provided by Python's standard library). No extraction, target execution, `ldd`, subprocess inspection, or network calls occur in the checker. Absolute/traversal paths, control characters, duplicate normalized paths, symlinks, hardlinks, and special files are rejected. **Real releases containing symlinks must currently be repackaged as regular files**; link support is intentionally deferred.
+Only ZIP and tar/tar.gz/tar.bz2/tar.xz archives are supported (as provided by Python's standard library). No extraction, target execution, `ldd`, subprocess inspection, or network calls occur in the checker. Absolute/traversal paths, control characters, duplicate normalized paths, file/directory conflicts (such as `app` and `app/config.json` when `app` is a file), symlinks, hardlinks, and special files are rejected. **Real releases containing symlinks must currently be repackaged as regular files**; link support is intentionally deferred.
 
 Defaults: 10,000 entries, 128 MiB per file, 512 MiB total expanded regular-file content; ELF dynamic tables and version chains also have explicit bounds. Contents are held in memory. These are application limits, not a security sandbox: hostile archives can still consume CPU or memory through decompression or archive metadata. Use isolated CI with resource limits for untrusted inputs. Keep Python updated.
 
