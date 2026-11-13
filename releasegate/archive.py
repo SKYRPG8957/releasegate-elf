@@ -1,4 +1,5 @@
 """Inspect archives in memory, without extracting paths or following links."""
+from bisect import bisect_left
 import stat
 import tarfile
 import zipfile
@@ -61,4 +62,10 @@ def read_archive(path):
                 if not (item.isfile() or item.isdir()):
                     raise ValueError('links and special archive entries are unsupported')
                 accept(item.name, item.size, item.mode, item.isdir(), lambda: archive.extractfile(item))
+    ordered_names = sorted(names)
+    for name in files:
+        prefix = name + '/'
+        index = bisect_left(ordered_names, prefix)
+        if index < len(ordered_names) and ordered_names[index].startswith(prefix):
+            raise ValueError('archive file/directory conflict: ' + repr(name))
     return files

@@ -188,6 +188,64 @@ class ReleaseGateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             read_archive(self.archive([('app', b'x', 0o644), ('./app', b'y', 0o644)]))
 
+    def test_file_cannot_also_be_parent_directory(self):
+        for zipped in (False, True):
+            for entries in (
+                [('app', b'file', 0o644), ('app/config.json', b'{}', 0o644)],
+                [('app/config.json', b'{}', 0o644), ('app', b'file', 0o644)],
+                [('app', b'file', 0o644), ('app/assets/config.json', b'{}', 0o644)],
+                [('app/assets/config.json', b'{}', 0o644), ('./app', b'file', 0o644)],
+            ):
+                with self.subTest(zipped=zipped, paths=[e[0] for e in entries]):
+                    with self.assertRaisesRegex(ValueError, 'file/directory conflict'):
+                        read_archive(self.archive(entries, zip=zipped))
+
+    def test_cli_reports_file_directory_conflict_as_input_error(self):
+        artifact = self.archive([('app', b'file', 0o644),
+                                 ('app/config.json', b'{}', 0o644)])
+        policy = self.root / 'policy.json'
+        policy.write_text(json.dumps(dict(self.policy, require_elf=False)))
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = main([str(artifact), '--policy', str(policy), '--format', 'json'])
+        self.assertEqual(code, 2)
+        result = json.loads(output.getvalue())
+        self.assertFalse(result['ok'])
+        self.assertIn('file/directory conflict', result['error'])
+
+    def test_deep_zip_path_does_not_expand_all_parent_prefixes(self):
+        # One legal ZIP member can contain thousands of path components.
+        name = 'a/' * 16000 + 'file'
+        self.assertEqual(set(read_archive(self.archive([(name, b'x', 0o644)], zip=True))),
+                         {name})
+
+    def test_similar_path_prefixes_are_not_conflicts(self):
+        for zipped in (False, True):
+            with self.subTest(zipped=zipped):
+                path = self.archive([('app', b'file', 0o644),
+                                     ('application/config.json', b'{}', 0o644)], zip=zipped)
+                self.assertEqual(len(read_archive(path)), 2)
+
+    def test_explicit_directories_can_follow_their_contents(self):
+        for zipped in (False, True):
+            with self.subTest(zipped=zipped):
+                path = self.root / ('directories.zip' if zipped else 'directories.tar')
+                if zipped:
+                    with zipfile.ZipFile(path, 'w') as archive:
+                        archive.writestr('app/assets/config.json', b'{}')
+                        archive.writestr('app/', b'')
+                        archive.writestr('app/assets/', b'')
+                else:
+                    with tarfile.open(path, 'w') as archive:
+                        item = tarfile.TarInfo('app/assets/config.json')
+                        item.size = 2
+                        archive.addfile(item, io.BytesIO(b'{}'))
+                        for name in ('app', 'app/assets'):
+                            item = tarfile.TarInfo(name)
+                            item.type = tarfile.DIRTYPE
+                            archive.addfile(item)
+                self.assertEqual(set(read_archive(path)), {'app/assets/config.json'})
+
     def test_links_rejected(self):
         path = self.root / 'link.tar'
         for kind in (tarfile.SYMTYPE, tarfile.LNKTYPE, tarfile.FIFOTYPE):
